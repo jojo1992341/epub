@@ -1,632 +1,146 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Markdown → EPUB</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=JetBrains+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<style>
-  :root {
-    --bg: #0f0f13;
-    --surface: #161620;
-    --surface2: #1e1e2c;
-    --border: #2a2a3d;
-    --border2: #363650;
-    --text: #d4cfbe;
-    --text-dim: #8a8578;
-    --text-bright: #f0ece0;
-    --gold: #c9a84c;
-    --gold-dim: #8a6e2a;
-    --gold-bright: #e8c46a;
-    --cyan: #4ecdc4;
-    --red: #e05555;
-    --green: #5dba7e;
-    --editor-bg: #0b0b0f;
-    --editor-text: #d4cfbe;
-    --preview-bg: #faf7f0;
-    --preview-text: #2c2820;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Crimson Pro', Georgia, serif;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  /* ═══════════ HEADER ═══════════ */
-  header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 1.5rem;
-    height: 52px;
-    flex-shrink: 0;
-    position: relative;
-  }
-  header::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--gold-dim) 30%, var(--gold) 50%, var(--gold-dim) 70%, transparent);
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-  }
-  .logo-icon {
-    width: 28px; height: 28px;
-    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
-    border-radius: 4px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px;
-  }
-  .logo-text {
-    font-family: 'Playfair Display', serif;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-bright);
-    letter-spacing: 0.02em;
-  }
-  .logo-sep {
-    color: var(--gold);
-    margin: 0 0.25rem;
-  }
-
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.4rem 0.9rem;
-    border: 1px solid var(--border2);
-    background: transparent;
-    color: var(--text);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.72rem;
-    cursor: pointer;
-    border-radius: 3px;
-    transition: all 0.15s;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-  }
-  .btn:hover {
-    border-color: var(--gold-dim);
-    color: var(--gold-bright);
-    background: rgba(201,168,76,0.06);
-  }
-  .btn:active { transform: scale(0.97); }
-  .btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .btn-primary {
-    background: linear-gradient(135deg, var(--gold) 0%, #a87c2a 100%);
-    border-color: var(--gold);
-    color: #0f0f13;
-    font-weight: 500;
-  }
-  .btn-primary:hover {
-    background: linear-gradient(135deg, var(--gold-bright) 0%, var(--gold) 100%);
-    border-color: var(--gold-bright);
-    color: #0f0f13;
-  }
-  .btn-primary:disabled {
-    background: var(--gold-dim);
-    border-color: var(--gold-dim);
-  }
-
-  /* ═══════════ TOOLBAR ═══════════ */
-  .toolbar {
-    background: var(--surface2);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 1.5rem;
-    flex-shrink: 0;
-    flex-wrap: wrap;
-  }
-
-  .field-group {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-  .field-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-dim);
-    white-space: nowrap;
-  }
-  input[type="text"], select {
-    background: var(--editor-bg);
-    border: 1px solid var(--border2);
-    color: var(--text-bright);
-    font-family: 'Crimson Pro', serif;
-    font-size: 0.9rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 3px;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-  input[type="text"]:focus, select:focus {
-    border-color: var(--gold-dim);
-  }
-  input[type="text"]::placeholder { color: var(--text-dim); font-style: italic; }
-  #input-title { width: 180px; }
-  #input-author { width: 130px; }
-  select { cursor: pointer; }
-  select option { background: var(--surface); }
-
-  .toolbar-sep {
-    width: 1px;
-    height: 22px;
-    background: var(--border2);
-    flex-shrink: 0;
-  }
-
-  .btn-icon {
-    padding: 0.3rem 0.5rem;
-    font-size: 0.85rem;
-  }
-
-  /* ═══════════ MAIN SPLIT ═══════════ */
-  .main {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-  }
-
-  .pane {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    position: relative;
-    min-width: 0;
-    min-height: 0;
-  }
-
-  .pane-header {
-    background: var(--surface2);
-    border-bottom: 1px solid var(--border);
-    padding: 0.35rem 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
-  }
-  .pane-title {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-dim);
-  }
-  .pane-title span { color: var(--gold); margin-right: 0.4rem; }
-
-  .pane-divider {
-    width: 4px;
-    background: var(--border);
-    flex-shrink: 0;
-    cursor: col-resize;
-    position: relative;
-    transition: background 0.15s;
-  }
-  .pane-divider:hover { background: var(--gold-dim); }
-
-  /* ═══════════ EDITOR ═══════════ */
-  #editor {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--editor-bg);
-    color: var(--editor-text);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    line-height: 1.75;
-    border: none;
-    outline: none;
-    padding: 1.5rem 1.5rem 1.5rem 4rem;
-    resize: none;
-    tab-size: 2;
-    -webkit-font-smoothing: antialiased;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
-    overflow-wrap: break-word;
-  }
-  .editor-wrapper {
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-    min-height: 0;
-  }
-  .line-numbers {
-    position: absolute;
-    left: 0; top: 0;
-    bottom: 0;
-    width: 3.2rem;
-    overflow: hidden;
-    background: var(--editor-bg);
-    border-right: 1px solid var(--border);
-    pointer-events: none;
-    user-select: none;
-    z-index: 1;
-  }
-  /* Inner container that scrolls with the editor */
-  .line-numbers-inner {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    /* will be transformed via translateY to match editor.scrollTop */
-  }
-  .line-num {
-    position: absolute;
-    left: 0; right: 0.4rem;
-    text-align: right;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--border2);
-    line-height: 1; /* we set explicit height via JS */
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-end;
-    padding-right: 0.4rem;
-  }
-
-  .line-numbers::-webkit-scrollbar { display: none; }
-  /* Mirror div: invisible clone of editor for measuring wrapped line heights */
-  #editor-mirror {
-    position: absolute;
-    top: 0; left: -9999px;
-    visibility: hidden;
-    pointer-events: none;
-    overflow: hidden;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    line-height: 1.75;
-    white-space: pre-wrap;
-    word-break: break-word;
-    overflow-wrap: break-word;
-    padding: 0;
-    border: none;
-    margin: 0;
-  }
-
-  /* ═══════════ PREVIEW ═══════════ */
-  #preview {
-    flex: 1;
-    min-height: 0;
-    background: var(--preview-bg);
-    color: var(--preview-text);
-    padding: 2rem 2.5rem;
-    overflow-y: auto;
-    font-family: 'Crimson Pro', Georgia, serif;
-    font-size: 1.05rem;
-    line-height: 1.7;
-    -webkit-font-smoothing: antialiased;
-  }
-  #preview h1 { font-family: 'Playfair Display', serif; font-size: 1.9rem; margin: 1.5rem 0 0.5rem; color: #1a1714; border-bottom: 2px solid #c9a84c; padding-bottom: 0.3rem; }
-  #preview h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; margin: 1.4rem 0 0.4rem; color: #1a1714; }
-  #preview h3 { font-family: 'Playfair Display', serif; font-size: 1.2rem; margin: 1.2rem 0 0.4rem; color: #2c2820; }
-  #preview h4 { font-family: 'Playfair Display', serif; font-size: 1.1rem; margin: 2rem 0 0.5rem; color: #1a1714; border-left: 3px solid #c9a84c; padding-left: 0.7rem; }
-  #preview p { margin: 0.6rem 0; text-align: justify; }
-  #preview strong { font-weight: 600; color: #1a1714; }
-  #preview em { font-style: italic; color: #5a4e3c; }
-  #preview code { font-family: 'JetBrains Mono', monospace; font-size: 0.82em; background: #ede9df; padding: 0.1em 0.35em; border-radius: 2px; color: #7a4a1a; }
-  #preview pre { background: #ede9df; padding: 1rem 1.2rem; border-radius: 4px; overflow-x: auto; border-left: 3px solid #c9a84c; margin: 0.8rem 0; }
-  #preview pre code { background: none; padding: 0; color: #2c2820; }
-  #preview blockquote { border-left: 3px solid #c9a84c; margin: 1rem 0 1rem 1rem; padding-left: 1rem; color: #5a4e3c; font-style: italic; }
-  #preview ul, #preview ol { margin: 0.5rem 0 0.5rem 1.5rem; }
-  #preview li { margin: 0.2rem 0; }
-  #preview hr { border: none; border-top: 1px solid #c9a84c44; margin: 2rem 0; }
-  #preview a { color: #8a5e1a; text-decoration: underline; }
-  .chapter-divider { background: linear-gradient(90deg, #c9a84c22, #c9a84c44, #c9a84c22); height: 1px; margin: 2rem 0; }
-
-  /* ═══════════ STATUS BAR ═══════════ */
-  footer {
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.3rem 1.5rem;
-    flex-shrink: 0;
-    height: 28px;
-  }
-  .status-items {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-  }
-  .status-item {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.68rem;
-    color: var(--text-dim);
-    letter-spacing: 0.04em;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-  .status-item .val { color: var(--text); }
-  .status-item .dot {
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    background: var(--green);
-    animation: pulse 2s infinite;
-  }
-  .status-item .dot.saving { background: var(--gold); }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-  #status-save { color: var(--green); }
-
-  /* ═══════════ TOAST ═══════════ */
-  #toast-container {
-    position: fixed;
-    bottom: 2.5rem;
-    right: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    z-index: 1000;
-  }
-  .toast {
-    background: var(--surface2);
-    border: 1px solid var(--border2);
-    border-left: 3px solid var(--green);
-    color: var(--text-bright);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    padding: 0.6rem 1rem;
-    border-radius: 3px;
-    animation: slideIn 0.2s ease, fadeOut 0.4s ease 2.6s forwards;
-    max-width: 280px;
-  }
-  .toast.error { border-left-color: var(--red); }
-  @keyframes slideIn {
-    from { transform: translateX(20px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  @keyframes fadeOut {
-    to { opacity: 0; transform: translateX(10px); }
-  }
-
-  /* ═══════════ LOADING ═══════════ */
-  #loading-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(10,10,15,0.85);
-    z-index: 999;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 1rem;
-  }
-  #loading-overlay.active { display: flex; }
-  .spinner {
-    width: 40px; height: 40px;
-    border: 2px solid var(--border2);
-    border-top-color: var(--gold);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--text-dim);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  /* ═══════════ MOBILE TABS ═══════════ */
-  .mobile-tabs {
-    display: none;
-    background: var(--surface2);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  .mobile-tab {
-    flex: 1;
-    padding: 0.6rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-dim);
-    background: none;
-    border: none;
-    cursor: pointer;
-    transition: all 0.15s;
-    border-bottom: 2px solid transparent;
-  }
-  .mobile-tab.active {
-    color: var(--gold);
-    border-bottom-color: var(--gold);
-  }
-
-  /* ═══════════ FILE INPUT ═══════════ */
-  #file-input { display: none; }
-
-  /* ═══════════ RESPONSIVE ═══════════ */
-  @media (max-width: 768px) {
-    .mobile-tabs { display: flex; }
-    .pane-divider { display: none; }
-    .main { flex-direction: column; }
-    .pane { flex: none; height: calc(100% - 0px); }
-    .pane.hidden { display: none; }
-    #input-title { width: 120px; }
-    #input-author { width: 100px; }
-    header { padding: 0 0.75rem; }
-    .toolbar { padding: 0.5rem 0.75rem; gap: 0.5rem; }
-    .logo-text { font-size: 0.85rem; }
-  }
-
-  @media (min-width: 769px) and (max-width: 1023px) {
-    .pane:first-child { flex: 4; }
-    .pane:last-child { flex: 6; }
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Markdown → EPUB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=JetBrains+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f0f13; --surface: #161620; --surface2: #1e1e2c; --border: #2a2a3d; --border2: #363650;
+      --text: #d4cfbe; --text-dim: #8a8578; --text-bright: #f0ece0; --gold: #c9a84c; --gold-dim: #8a6e2a;
+      --gold-bright: #e8c46a; --editor-bg: #0b0b0f; --editor-text: #d4cfbe; --preview-bg: #faf7f0; --preview-text: #2c2820;
+      --ok: #5dba7e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--text); font-family: 'Crimson Pro', Georgia, serif; overflow: hidden; }
+    header { height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 1.25rem; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .logo { display: flex; align-items: center; gap: 0.6rem; }
+    .logo-icon { width: 28px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%); color: #111; font-size: 14px; }
+    .logo-text { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+    .header-actions { display: flex; align-items: center; gap: 0.6rem; }
+    .btn { border: 1px solid var(--border2); background: transparent; color: var(--text); border-radius: 3px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.4rem 0.85rem; transition: .15s; }
+    .btn:hover { border-color: var(--gold-dim); color: var(--gold-bright); }
+    .btn-primary { color: #0f0f13; border-color: var(--gold); background: linear-gradient(135deg, var(--gold) 0%, #a87c2a 100%); font-weight: 600; }
+    .toolbar { flex-shrink: 0; display: flex; align-items: center; gap: .75rem; padding: .5rem 1.25rem; background: var(--surface2); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .field-group { display: flex; align-items: center; gap: .4rem; }
+    .field-label { font-family: 'JetBrains Mono', monospace; color: var(--text-dim); font-size: 0.64rem; text-transform: uppercase; letter-spacing: .1em; }
+    input[type="text"], select { height: 30px; border: 1px solid var(--border2); border-radius: 3px; outline: none; background: var(--editor-bg); color: var(--text-bright); padding: 0 .55rem; font-family: 'Crimson Pro', serif; font-size: .92rem; }
+    #input-title { width: 180px; } #input-author { width: 130px; }
+    .toolbar-sep { width: 1px; height: 22px; background: var(--border2); }
+    .main { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+    .pane { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+    .pane-header { flex-shrink: 0; height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 .95rem; background: var(--surface2); border-bottom: 1px solid var(--border); }
+    .pane-title { font-family: 'JetBrains Mono', monospace; color: var(--text-dim); font-size: 0.65rem; letter-spacing: .1em; text-transform: uppercase; }
+    .editor-wrapper { flex: 1; min-height: 0; position: relative; overflow: hidden; background: var(--editor-bg); }
+    .line-numbers { position: absolute; left: 0; top: 0; bottom: 0; width: 3.2rem; border-right: 1px solid var(--border); color: var(--border2); font-family: 'JetBrains Mono', monospace; font-size: .85rem; line-height: 1.75; pointer-events: none; overflow: hidden; padding: 1.5rem .35rem 1.5rem 0; text-align: right; user-select: none; }
+    #line-numbers-content { white-space: pre; transform: translateY(0); will-change: transform; }
+    #editor { width: 100%; height: 100%; border: none; outline: none; resize: none; padding: 1.5rem 1.5rem 1.5rem 4rem; background: var(--editor-bg); color: var(--editor-text); font-family: 'JetBrains Mono', monospace; font-size: .85rem; line-height: 1.75; white-space: pre; overflow: auto; }
+    .pane-divider { width: 4px; background: var(--border); cursor: col-resize; flex-shrink: 0; }
+    #preview { flex: 1; min-height: 0; overflow: auto; padding: 2rem 2.4rem; background: var(--preview-bg); color: var(--preview-text); font-size: 1.08rem; line-height: 1.75; }
+    #preview h1, #preview h2, #preview h3, #preview h4 { font-family: 'Playfair Display', serif; margin: 1rem 0 .5rem; }
+    #preview h1 { font-size: 1.8rem; border-bottom: 2px solid #c9a84c; padding-bottom: .25rem; }
+    #preview h4 { border-left: 3px solid #c9a84c; padding-left: .65rem; }
+    #preview p { margin: .65rem 0; }
+    #preview blockquote { border-left: 3px solid #c9a84c; margin: .9rem 0 .9rem 1rem; padding-left: 1rem; color: #5a4e3c; }
+    #preview code { font-family: 'JetBrains Mono', monospace; font-size: .86em; background: #ede9df; padding: .1em .3em; border-radius: 2px; }
+    #preview pre { background: #ede9df; padding: .85rem 1rem; border-left: 3px solid #c9a84c; overflow: auto; }
+    .chapter-divider { height: 1px; background: #c9a84c44; margin: 1.6rem 0; }
+    footer { height: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 1.25rem; border-top: 1px solid var(--border); background: var(--surface); color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: .68rem; }
+    .status-row { display: flex; align-items: center; gap: 1rem; }
+    .status-ok { color: var(--ok); }
+    #file-input { display: none; }
+    #toast { position: fixed; right: 1rem; bottom: 2.3rem; background: var(--surface2); border: 1px solid var(--border2); border-left: 3px solid var(--gold); padding: .55rem .8rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: .72rem; opacity: 0; transform: translateY(6px); transition: .2s; pointer-events: none; z-index: 1000; }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 900px) { .main { flex-direction: column; } .pane-divider { display: none; } #input-title { width: 140px; } #input-author { width: 110px; } }
+  </style>
 </head>
 <body>
-
-<!-- HEADER -->
-<header>
-  <div class="logo">
-    <div class="logo-icon">📖</div>
-    <div class="logo-text">Markdown<span class="logo-sep">→</span>EPUB</div>
-  </div>
-  <div class="header-actions">
-    <button class="btn btn-icon" id="btn-theme" title="Thème clair/sombre">◐</button>
-    <button class="btn" id="btn-export-md" title="Exporter le Markdown">⬡ MD</button>
-    <button class="btn" id="btn-export-html" title="Exporter en HTML">⬡ HTML</button>
-    <button class="btn btn-primary" id="btn-export">📥 Exporter EPUB</button>
-  </div>
-</header>
-
-<!-- TOOLBAR -->
-<div class="toolbar">
-  <div class="field-group">
-    <span class="field-label">Titre</span>
-    <input type="text" id="input-title" placeholder="Mon livre…" />
-  </div>
-  <div class="field-group">
-    <span class="field-label">Auteur</span>
-    <input type="text" id="input-author" placeholder="Anonyme" />
-  </div>
-  <div class="field-group">
-    <span class="field-label">Lang</span>
-    <select id="input-lang">
-      <option value="fr">🇫🇷 FR</option>
-      <option value="en">🇬🇧 EN</option>
-      <option value="es">🇪🇸 ES</option>
-      <option value="de">🇩🇪 DE</option>
-      <option value="it">🇮🇹 IT</option>
-      <option value="pt">🇵🇹 PT</option>
-      <option value="ja">🇯🇵 JA</option>
-    </select>
-  </div>
-  <div class="toolbar-sep"></div>
-  <button class="btn btn-icon" id="btn-import" title="Importer un fichier .md">📂 Importer</button>
-  <input type="file" id="file-input" accept=".md,.txt">
-  <button class="btn btn-icon" id="btn-clear" title="Effacer l'éditeur">🗑</button>
-  <div class="toolbar-sep"></div>
-  <button class="btn btn-icon" id="btn-font-down" title="Réduire la police">A−</button>
-  <button class="btn btn-icon" id="btn-font-up" title="Agrandir la police">A+</button>
-</div>
-
-<!-- MOBILE TABS -->
-<div class="mobile-tabs">
-  <button class="mobile-tab active" data-tab="editor">✏ Éditeur</button>
-  <button class="mobile-tab" data-tab="preview">👁 Aperçu</button>
-</div>
-
-<!-- MAIN SPLIT VIEW -->
-<div class="main">
-  <!-- LEFT: EDITOR -->
-  <div class="pane" id="pane-editor">
-    <div class="pane-header">
-      <span class="pane-title"><span>✦</span> Éditeur Markdown</span>
-      <span id="pane-hint" style="font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:var(--text-dim)">#### = nouveau chapitre</span>
+  <header>
+    <div class="logo"><div class="logo-icon">📖</div><div class="logo-text">Markdown → EPUB</div></div>
+    <div class="header-actions">
+      <button class="btn" id="btn-theme">◐</button>
+      <button class="btn" id="btn-export-md">⬡ MD</button>
+      <button class="btn" id="btn-export-html">⬡ HTML</button>
+      <button class="btn btn-primary" id="btn-export-epub">📥 Export EPUB</button>
     </div>
-    <div class="editor-wrapper">
-      <div class="line-numbers" id="line-numbers"><div class="line-numbers-inner" id="line-numbers-inner"></div></div>
-      <div id="editor-mirror"></div>
-      <textarea id="editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="# Mon Livre
+  </header>
+
+  <div class="toolbar">
+    <div class="field-group"><span class="field-label">Titre</span><input type="text" id="input-title" placeholder="Mon livre…" /></div>
+    <div class="field-group"><span class="field-label">Auteur</span><input type="text" id="input-author" placeholder="Anonyme" /></div>
+    <div class="field-group"><span class="field-label">Lang</span><select id="input-lang"><option value="fr">🇫🇷 FR</option><option value="en">🇬🇧 EN</option><option value="es">🇪🇸 ES</option></select></div>
+    <div class="toolbar-sep"></div>
+    <button class="btn" id="btn-import">📂 Importer</button>
+    <input id="file-input" type="file" accept=".md,.txt" />
+    <button class="btn" id="btn-clear">🗑 Nettoyer</button>
+    <div class="toolbar-sep"></div>
+    <button class="btn" id="btn-font-down">A−</button>
+    <button class="btn" id="btn-font-up">A+</button>
+  </div>
+
+  <div class="main">
+    <section class="pane" id="pane-editor">
+      <div class="pane-header"><span class="pane-title">✦ Éditeur Markdown</span><span class="pane-title" id="chapter-badge" style="font-size:.58rem"></span></div>
+      <div class="editor-wrapper">
+        <div class="line-numbers"><div id="line-numbers-content"></div></div>
+        <textarea id="editor" spellcheck="false"># Mon Livre
 
 #### Chapitre 1 — Le début
 
-Votre texte Markdown ici...
+Votre texte Markdown ici.
 
 #### Chapitre 2 — La suite
 
-Continuez votre histoire...
+Continuez votre histoire...</textarea>
+      </div>
+    </section>
 
-**Gras**, *italique*, `code`, > citation
-"></textarea>
-    </div>
+    <div class="pane-divider" id="divider"></div>
+
+    <section class="pane" id="pane-preview">
+      <div class="pane-header"><span class="pane-title">◈ Prévisualisation</span><span class="pane-title" style="font-size:.58rem">Synchronisée</span></div>
+      <article id="preview"></article>
+    </section>
   </div>
 
-  <!-- DIVIDER -->
-  <div class="pane-divider" id="divider"></div>
-
-  <!-- RIGHT: PREVIEW -->
-  <div class="pane" id="pane-preview">
-    <div class="pane-header">
-      <span class="pane-title"><span>◈</span> Prévisualisation</span>
-      <span id="chapter-badge" style="font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:var(--gold)"></span>
+  <footer>
+    <div class="status-row">
+      <span>Chapitres <strong id="stat-chapters">0</strong></span>
+      <span>Mots <strong id="stat-words">0</strong></span>
+      <span>Taille <strong id="stat-size">0 KB</strong></span>
+      <span>Lignes <strong id="stat-lines">0</strong></span>
     </div>
-    <div id="preview"></div>
-  </div>
-</div>
+    <div class="status-row status-ok"><span id="status-save">● Sauvegardé</span></div>
+  </footer>
 
-<!-- STATUS BAR -->
-<footer>
-  <div class="status-items">
-    <div class="status-item">
-      <span>Chapitres</span><span class="val" id="stat-chapters">0</span>
-    </div>
-    <div class="status-item">
-      <span>Mots</span><span class="val" id="stat-words">0</span>
-    </div>
-    <div class="status-item">
-      <span>Taille ~</span><span class="val" id="stat-size">0 KB</span>
-    </div>
-  </div>
-  <div class="status-items">
-    <div class="status-item">
-      <span class="dot" id="save-dot"></span>
-      <span id="status-save">Sauvegardé ✓</span>
-    </div>
-  </div>
-</footer>
+  <div id="toast"></div>
 
-<!-- LOADING OVERLAY -->
-<div id="loading-overlay">
-  <div class="spinner"></div>
-  <div class="loading-text">Génération EPUB…</div>
-</div>
+  <script>
+marked.setOptions({ gfm: true, breaks: false });
 
-<!-- TOAST CONTAINER -->
-<div id="toast-container"></div>
+const $ = id => document.getElementById(id);
+const editor = $('editor');
+const preview = $('preview');
+const lineNumbers = $('line-numbers-content');
 
-<script>
-// ══════════════════════════════════
-//  UTILITIES
-// ══════════════════════════════════
-function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0;
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-  });
+const state = {
+  fontSize: 13.6,
+  dark: true,
+  saveTimer: null,
+  syncLock: false,
+  lineOffsets: []
+};
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => t.classList.remove('show'), 1900);
 }
 
 function escapeXML(str) {
@@ -638,116 +152,33 @@ function escapeXML(str) {
     .replace(/'/g, '&apos;');
 }
 
-function toast(msg, type = 'success') {
-  const c = document.getElementById('toast-container');
-  const t = document.createElement('div');
-  t.className = 'toast' + (type === 'error' ? ' error' : '');
-  t.textContent = msg;
-  c.appendChild(t);
-  setTimeout(() => t.remove(), 3200);
-}
-
-function showLoading(v) {
-  document.getElementById('loading-overlay').classList.toggle('active', v);
-}
-
-// ══════════════════════════════════
-//  MARKED CONFIG
-// ══════════════════════════════════
-// Note: breaks:true is disabled for EPUB export (generates <br> inside <p> which is invalid XHTML)
-// We use a custom renderer instead for the preview only
-marked.setOptions({ gfm: true, breaks: false });
-
-// ══════════════════════════════════
-//  MARKDOWN EMPHASIS SPACING FIX
-// ══════════════════════════════════
-// Rule 1 — Remove space(s) after OPENING marker (* ** ***).
-//   An opening marker is one immediately followed by space then a non-space char,
-//   AND has a matching closing marker later on the same line.
-//   e.g. "* Bonjour*" → "*Bonjour*"   "** texte**" → "**texte**"
-// Rule 2 — Add space after CLOSING marker when immediately followed by a word char.
-//   A closing marker is one preceded by a non-space, non-* character.
-//   e.g. "*Bonjour*dit-il" → "*Bonjour* dit-il"
-//   Punctuation (.,!?;: etc.) after closing marker is left as-is (no space added).
-// Guards: list items ("* item"), code spans, fenced blocks are not modified.
-function fixMarkdownSpacing(md) {
-  const lines = md.split('\n');
-  let inCode = false;
-
-  const out = lines.map(line => {
-    if (/^\s*```/.test(line)) { inCode = !inCode; return line; }
-    if (inCode) return line;
-
-    // Temporarily hide inline code spans (`...`) to avoid false matches
-    const spans = [];
-    let s = line.replace(/`[^`\n]+`/g, m => { spans.push(m); return '\x00' + (spans.length-1) + '\x00'; });
-
-    // ── Rule G: fix guillemet («») placement relative to emphasis markers ──
-    // Ensures the marker always wraps OUTSIDE the guillemets: M«content»M
-    // Three malformed cases per marker level (processed *** → ** → * to avoid partial matches):
-    //   1. M«content M»  → opening before «, closing before »  → M«content»M
-    //   2. «M content»M  → opening after «,  closing after »   → M«content»M
-    //   3. «M content M» → both markers inside guillemets       → M«content»M
-
-    // ***
-    s = s.replace(/\*\*\*«([^»\n]*)\*\*\*»/g, '***«$1»***');
-    s = s.replace(/«\*\*\*([^»\n]*)»\*\*\*/g, '***«$1»***');
-    s = s.replace(/«\*\*\*([^»\n]*)\*\*\*»/g, '***«$1»***');
-    // **
-    s = s.replace(/\*\*(?!\*)«([^»\n]*)\*\*(?!\*)»/g, '**«$1»**');
-    s = s.replace(/«\*\*(?!\*)([^»\n]*)»\*\*(?!\*)/g, '**«$1»**');
-    s = s.replace(/«\*\*(?!\*)([^»\n]*)\*\*(?!\*)»/g, '**«$1»**');
-    // *
-    s = s.replace(/(?<!\*)\*(?!\*)«([^»\n]*)(?<!\*)\*(?!\*)»/g, '*«$1»*');
-    s = s.replace(/«(?<!\*)\*(?!\*)([^»\n]*)»(?<!\*)\*(?!\*)/g, '*«$1»*');
-    s = s.replace(/«(?<!\*)\*(?!\*)([^»\n]*)(?<!\*)\*(?!\*)»/g, '*«$1»*');
-
-    // ── Rule 1: remove space(s) after opening marker ─────────────────────
-    // Regex matches: marker + spaces + (content up to matching closing marker)
-    // Requires the closing marker on the same line → list items ("* text") are safe.
-    s = s.replace(/\*\*\*\s+([^*\n]*\*\*\*)/g,        '***$1');   // ***
-    s = s.replace(/\*\*\s+([^*\n]*\*\*(?!\*))/g,       '**$1');    // **
-    // For * (single): only fire when there IS a closing * later on the line
-    s = s.replace(/(?<![*\S])\*\s+([^*\n]+\*(?!\*))/g, '*$1');     // *
-
-    // ── Rule 2: add space after CLOSING marker when followed by a word char ──
-    // Closing marker = preceded by [^\s*] (non-space, non-star = end of emphasised word)
-    // Word char classes: ASCII + Latin extended + Cyrillic
-    const W = '[a-zA-Z0-9\u00C0-\u024F\u0400-\u04FF]';
-    const wRe = new RegExp(W);
-
-    // *** closing: [^\s*]*** followed by word char
-    s = s.replace(/([^\s*])(\*\*\*)([a-zA-Z0-9\u00C0-\u024F\u0400-\u04FF])/g, '$1$2 $3');
-    // ** closing: [^\s*]** (not ***) followed by word char
-    s = s.replace(/([^\s*])(\*\*)(?!\*)([a-zA-Z0-9\u00C0-\u024F\u0400-\u04FF])/g, '$1$2 $3');
-    // * closing:  [^\s*]* (not ** or ***) followed by word char
-    s = s.replace(/([^\s*])(\*)(?!\*)([a-zA-Z0-9\u00C0-\u024F\u0400-\u04FF])/g, '$1$2 $3');
-
-    // Restore code spans
-    s = s.replace(/\x00(\d+)\x00/g, (_, i) => spans[+i]);
-    return s;
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
   });
-
-  return out.join('\n');
 }
 
-// ══════════════════════════════════
-//  CHAPTER SPLITTING
-// ══════════════════════════════════
+function fixMarkdownSpacing(md) {
+  return md
+    .split('\n')
+    .map(line => line.replace(/\*\*\s+([^*\n]+)\s+\*\*/g, '**$1**').replace(/\*\s+([^*\n]+)\s+\*/g, '*$1*'))
+    .join('\n');
+}
+
 function splitIntoChapters(md) {
   const regex = /^####\s+(.+)$/gm;
   const matches = [...md.matchAll(regex)];
-
-  if (matches.length === 0) {
+  if (!matches.length) {
     return [{ id: 'chapter-1', title: 'Chapitre 1', content: md || '' }];
   }
 
   const chapters = [];
-  const firstIdx = matches[0].index;
-
-  if (firstIdx > 0) {
-    const pre = md.substring(0, firstIdx).trim();
-    if (pre) chapters.push({ id: 'intro', title: 'Introduction', content: pre });
+  const firstStart = matches[0].index;
+  if (firstStart > 0) {
+    const intro = md.slice(0, firstStart).trim();
+    if (intro) chapters.push({ id: 'intro', title: 'Introduction', content: intro });
   }
 
   matches.forEach((m, i) => {
@@ -755,619 +186,277 @@ function splitIntoChapters(md) {
     const end = i + 1 < matches.length ? matches[i + 1].index : md.length;
     chapters.push({
       id: `chapter-${i + 1}`,
-      title: m[1].trim() || 'Chapitre sans titre',
-      content: md.substring(start, end)
+      title: m[1].trim() || `Chapitre ${i + 1}`,
+      content: md.slice(start, end)
     });
   });
 
   return chapters;
 }
 
-// ══════════════════════════════════
-//  EPUB BUILDER
-// ══════════════════════════════════
-const EPUB_CSS = `body{font-family:Georgia,"Times New Roman",serif;margin:1.5em 2em;line-height:1.6;color:#2c2820;font-size:1em}h1,h2,h3,h4{font-family:"Palatino Linotype",Palatino,serif;color:#1a1714;margin-top:1.5em;margin-bottom:0.5em}h1{font-size:2em;border-bottom:2px solid #c9a84c;padding-bottom:0.4em}h2{font-size:1.5em}h3{font-size:1.2em}h4{font-size:1.1em;border-left:3px solid #c9a84c;padding-left:0.7em}p{margin:0.6em 0;text-align:justify}blockquote{margin:1em 2em;padding-left:1em;border-left:3px solid #c9a84c;font-style:italic;color:#5a4e3c}code{font-family:"Courier New",monospace;background:#f0ece2;padding:0.1em 0.3em;font-size:0.85em}pre{background:#f0ece2;padding:1em;overflow-x:auto;font-size:0.85em;border-left:3px solid #c9a84c}ul,ol{margin:0.5em 0 0.5em 1.5em}li{margin:0.25em 0}strong{color:#1a1714}hr{border:none;border-top:1px solid #c9a84c55;margin:2em 0}.title-page{text-align:center;margin-top:30%;padding:2em}.title-page h1{border:none;font-size:2.5em;margin-bottom:0.3em}.title-page .author{font-size:1.3em;font-style:italic;color:#5a4e3c;margin-bottom:1em}.title-page .date{color:#8a7a6a;font-size:0.9em}`;
+function renderWithSourceMap(md) {
+  const tokens = marked.lexer(md);
+  const tokenStartLines = [];
+  let lineNumber = 0;
 
-function buildContainerXML() {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>`;
-}
-
-function buildOPF(chapters, meta, uuid) {
-  const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const items = chapters.map((c, i) =>
-    `    <item id="${c.id}" href="${c.id}.xhtml" media-type="application/xhtml+xml"/>`
-  ).join('\n');
-  const spine = chapters.map(c =>
-    `    <itemref idref="${c.id}"/>`
-  ).join('\n');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="book-id">urn:uuid:${uuid}</dc:identifier>
-    <dc:title>${escapeXML(meta.title)}</dc:title>
-    <dc:creator>${escapeXML(meta.author)}</dc:creator>
-    <dc:language>${meta.lang}</dc:language>
-    <meta property="dcterms:modified">${now}</meta>
-  </metadata>
-  <manifest>
-    <item id="style" href="style.css" media-type="text/css"/>
-    <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
-    <item id="title-page" href="title.xhtml" media-type="application/xhtml+xml"/>
-${items}
-  </manifest>
-  <spine toc="ncx">
-    <itemref idref="title-page"/>
-    <itemref idref="nav"/>
-${spine}
-  </spine>
-</package>`;
-}
-
-function buildNCX(chapters, meta, uuid) {
-  const pts = chapters.map((c, i) => `
-    <navPoint id="np-${c.id}" playOrder="${i + 3}">
-      <navLabel><text>${escapeXML(c.title)}</text></navLabel>
-      <content src="${c.id}.xhtml"/>
-    </navPoint>`).join('');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
-  <head>
-    <meta name="dtb:uid" content="urn:uuid:${uuid}"/>
-    <meta name="dtb:depth" content="1"/>
-  </head>
-  <docTitle><text>${escapeXML(meta.title)}</text></docTitle>
-  <navMap>
-    <navPoint id="np-title" playOrder="1">
-      <navLabel><text>Page de titre</text></navLabel>
-      <content src="title.xhtml"/>
-    </navPoint>
-    <navPoint id="np-toc" playOrder="2">
-      <navLabel><text>Table des matières</text></navLabel>
-      <content src="toc.xhtml"/>
-    </navPoint>${pts}
-  </navMap>
-</ncx>`;
-}
-
-function buildTocXHTML(chapters, meta) {
-  const items = chapters.map((c, i) =>
-    `      <li><a href="${c.id}.xhtml">${escapeXML(c.title)}</a></li>`
-  ).join('\n');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${meta.lang}">
-<head>
-  <title>Table des matières</title>
-  <link rel="stylesheet" type="text/css" href="style.css"/>
-  <style type="text/css">
-    .toc-page { padding: 2em 1em; }
-    .toc-page h1 { font-size: 1.6em; margin-bottom: 1.2em; border-bottom: 2px solid #c9a84c; padding-bottom: 0.4em; }
-    .toc-page ol { list-style: none; padding: 0; counter-reset: toc-counter; }
-    .toc-page ol li { counter-increment: toc-counter; border-bottom: 1px solid #e8e0d0; padding: 0.5em 0; display: flex; align-items: baseline; gap: 0.5em; }
-    .toc-page ol li::before { content: counter(toc-counter) "."; color: #c9a84c; font-weight: bold; min-width: 1.5em; }
-    .toc-page ol li a { color: #2c2820; text-decoration: none; font-size: 1.05em; }
-    .toc-page ol li a:hover { color: #8a5e1a; text-decoration: underline; }
-  </style>
-</head>
-<body>
-  <div class="toc-page">
-    <nav epub:type="toc" id="toc">
-      <h1>Table des matières</h1>
-      <ol>
-${items}
-      </ol>
-    </nav>
-  </div>
-</body>
-</html>`;
-}
-
-function buildTitleXHTML(meta) {
-  const date = new Date().toLocaleDateString(meta.lang === 'fr' ? 'fr-FR' : 'en-US', {
-    year: 'numeric', month: 'long', day: 'numeric'
+  tokens.forEach(token => {
+    tokenStartLines.push(lineNumber);
+    if (token.raw) lineNumber += token.raw.split('\n').length - 1;
   });
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <title>${escapeXML(meta.title)}</title>
-  <link rel="stylesheet" type="text/css" href="style.css"/>
-</head>
-<body>
-  <div class="title-page">
-    <h1>${escapeXML(meta.title)}</h1>
-    <p class="author">${escapeXML(meta.author)}</p>
-    <p class="date">${date}</p>
-  </div>
-</body>
-</html>`;
-}
 
-// Convert HTML (from marked) into valid XHTML for EPUB
-function htmlToXhtml(html) {
-  const voids = ['br','hr','img','input','col','area','base','embed','param','source','track','wbr'];
-  voids.forEach(tag => {
-    const re = new RegExp('<(' + tag + ')(\\s[^>]*)?>(?!\\s*</' + tag + '>)', 'gi');
-    html = html.replace(re, (m, t, attrs) => '<' + t + (attrs || '') + '/>');
-  });
-  // Fix any double-self-close artifact
-  html = html.replace(/<(\w[\w-]*)([^>]*?)\/\/>/g, '<$1$2/>');
-  return html;
-}
+  const renderer = new marked.Renderer();
+  let idx = 0;
+  const src = () => tokenStartLines[idx++] ?? 0;
 
-function buildChapterXHTML(chapter) {
-  const rawHtml = marked.parse(chapter.content);
-  const xhtml = htmlToXhtml(rawHtml);
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <title>${escapeXML(chapter.title)}</title>
-  <link rel="stylesheet" type="text/css" href="style.css"/>
-</head>
-<body>
-${xhtml}
-</body>
-</html>`;
-}
-
-async function generateEPUB() {
-  const md = document.getElementById('editor').value.trim();
-  if (!md) { toast('L\'éditeur est vide.', 'error'); return; }
-
-  const meta = {
-    title: document.getElementById('input-title').value.trim() || 'Mon livre',
-    author: document.getElementById('input-author').value.trim() || 'Anonyme',
-    lang: document.getElementById('input-lang').value
+  renderer.heading = (text, level) => `<h${level} data-srcline="${src()}">${text}</h${level}>
+`;
+  renderer.paragraph = text => `<p data-srcline="${src()}">${text}</p>
+`;
+  renderer.blockquote = q => `<blockquote data-srcline="${src()}">${q}</blockquote>
+`;
+  renderer.list = (body, ordered, start) => {
+    const tag = ordered ? 'ol' : 'ul';
+    const s = ordered && start !== 1 ? ` start="${start}"` : '';
+    return `<${tag} data-srcline="${src()}"${s}>${body}</${tag}>
+`;
   };
+  renderer.code = (code, lang) => {
+    const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const cls = lang ? ` class="language-${lang}"` : '';
+    return `<pre data-srcline="${src()}"><code${cls}>${escaped}</code></pre>
+`;
+  };
+  renderer.hr = () => `<hr data-srcline="${src()}"/>
+`;
 
-  showLoading(true);
-  await new Promise(r => setTimeout(r, 60));
-
-  try {
-    const chapters = splitIntoChapters(fixMarkdownSpacing(md));
-    const uuid = generateUUID();
-    const zip = new JSZip();
-
-    zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
-    zip.file('META-INF/container.xml', buildContainerXML());
-    zip.file('OEBPS/content.opf', buildOPF(chapters, meta, uuid));
-    zip.file('OEBPS/toc.ncx', buildNCX(chapters, meta, uuid));
-    zip.file('OEBPS/toc.xhtml', buildTocXHTML(chapters, meta));
-    zip.file('OEBPS/style.css', EPUB_CSS);
-    zip.file('OEBPS/title.xhtml', buildTitleXHTML(meta));
-    chapters.forEach(c => zip.file(`OEBPS/${c.id}.xhtml`, buildChapterXHTML(c)));
-
-    const blob = await zip.generateAsync({
-      type: 'blob',
-      mimeType: 'application/epub+zip',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 9 }
-    });
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = (meta.title.replace(/[^a-zA-Z0-9\u00C0-\u024F\s-]/g, '').trim() || 'livre') + '.epub';
-    a.click();
-    URL.revokeObjectURL(url);
-
-    toast(`✓ EPUB généré — ${chapters.length} chapitre(s)`);
-  } catch (e) {
-    toast('Erreur lors de la génération : ' + e.message, 'error');
-    console.error(e);
-  } finally {
-    showLoading(false);
-  }
+  return marked.parse(md, { renderer });
 }
-
-function exportHTML() {
-  const md = document.getElementById('editor').value.trim();
-  if (!md) { toast("L'éditeur est vide.", 'error'); return; }
-  const title = document.getElementById('input-title').value.trim() || 'Mon livre';
-  const author = document.getElementById('input-author').value.trim() || 'Anonyme';
-  const lang = document.getElementById('input-lang').value;
-  const chapters = splitIntoChapters(fixMarkdownSpacing(md));
-
-  // Build TOC HTML
-  const tocItems = chapters.map((c, i) =>
-    `<li><a href="#${c.id}">${escapeXML(c.title)}</a></li>`
-  ).join('\n        ');
-
-  // Build chapter bodies with anchor IDs
-  const chaptersHtml = chapters.map(c => {
-    // Insert an anchor at the start of the chapter content
-    const parsed = marked.parse(c.content);
-    // Wrap with a section that has the ID
-    return `<section id="${c.id}">\n${parsed}\n</section>`;
-  }).join('\n<hr style="border:none;border-top:1px solid #c9a84c44;margin:2.5rem 0">\n');
-
-  const html = `<!DOCTYPE html>
-<html lang="${lang}">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${escapeXML(title)}</title>
-<style>
-  body { font-family: Georgia, "Times New Roman", serif; max-width: 720px; margin: 3rem auto; padding: 0 1.5rem; line-height: 1.75; color: #2c2820; font-size: 1.08em; }
-  h1, h2, h3, h4 { font-family: "Palatino Linotype", Palatino, serif; color: #1a1714; }
-  h1 { font-size: 2.2em; border-bottom: 2px solid #c9a84c; padding-bottom: 0.4em; margin-bottom: 0.3em; }
-  h4 { border-left: 3px solid #c9a84c; padding-left: 0.7em; margin-top: 2em; }
-  blockquote { border-left: 3px solid #c9a84c; margin: 1em 0 1em 1em; padding-left: 1em; color: #5a4e3c; font-style: italic; }
-  code { font-family: "Courier New", monospace; background: #f0ece2; padding: 0.1em 0.3em; font-size: 0.88em; border-radius: 2px; }
-  pre { background: #f0ece2; padding: 1em 1.2em; overflow-x: auto; border-left: 3px solid #c9a84c; border-radius: 2px; }
-  pre code { background: none; padding: 0; }
-  a { color: #8a5e1a; }
-  /* Title page */
-  .title-page { text-align: center; padding: 3rem 0 2rem; border-bottom: 1px solid #c9a84c44; margin-bottom: 2.5rem; }
-  .title-page h1 { border: none; font-size: 2.5em; }
-  .title-page .author { font-size: 1.2em; font-style: italic; color: #5a4e3c; margin-top: 0.5em; }
-  /* TOC */
-  nav.toc { background: #faf7f0; border: 1px solid #e0d8c8; border-radius: 4px; padding: 1.5rem 2rem; margin-bottom: 3rem; }
-  nav.toc h2 { font-size: 1.2em; margin: 0 0 1rem; color: #1a1714; border-bottom: 1px solid #c9a84c55; padding-bottom: 0.4em; }
-  nav.toc ol { padding-left: 1.2em; margin: 0; }
-  nav.toc li { padding: 0.3em 0; border-bottom: 1px solid #e8e0d0; }
-  nav.toc li:last-child { border-bottom: none; }
-  nav.toc a { color: #2c2820; text-decoration: none; font-size: 1em; }
-  nav.toc a:hover { color: #8a5e1a; text-decoration: underline; }
-  /* Counter for TOC */
-  nav.toc ol { list-style: none; counter-reset: toc; padding: 0; }
-  nav.toc li { counter-increment: toc; display: flex; align-items: baseline; gap: 0.5em; }
-  nav.toc li::before { content: counter(toc) "."; color: #c9a84c; font-weight: bold; min-width: 1.4em; }
-</style>
-</head>
-<body>
-<div class="title-page">
-  <h1>${escapeXML(title)}</h1>
-  <p class="author">${escapeXML(author)}</p>
-</div>
-<nav class="toc">
-  <h2>Table des matières</h2>
-  <ol>
-        ${tocItems}
-  </ol>
-</nav>
-${chaptersHtml}
-</body>
-</html>`;
-
-  const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = (title.replace(/[^a-zA-Z0-9\u00C0-\u024F\s-]/g, '').trim() || 'livre') + '.html';
-  a.click();
-  toast('✓ Export HTML terminé — TOC incluse');
-}
-
-// ══════════════════════════════════
-//  EDITOR UI
-// ══════════════════════════════════
-const editor = document.getElementById('editor');
-let editorFontSize = 13.6;
-let saveTimeout;
-let isDark = true;
-
-// Cached line offsets: lineOffsets[i] = pixel distance from content top to source line i
-let lineOffsets = [];
 
 function computeLineOffsets() {
-  const mirror = document.getElementById('editor-mirror');
   const lines = editor.value.split('\n');
-
-  // Match mirror width to editor text area width
-  // Editor padding: top=1.5rem left=4rem right=1.5rem
-  const editorStyle = getComputedStyle(editor);
-  const paddingLeft  = parseFloat(editorStyle.paddingLeft)  || 0;
-  const paddingRight = parseFloat(editorStyle.paddingRight) || 0;
-  const textWidth = editor.clientWidth - paddingLeft - paddingRight;
-  mirror.style.width = textWidth + 'px';
-  mirror.style.fontSize = editorStyle.fontSize;
-  mirror.style.lineHeight = editorStyle.lineHeight;
-
-  const offsets = [];
-  let top = 0;
-
-  lines.forEach(line => {
-    offsets.push(top);
-    // Use a zero-width space for empty lines so they still have full line height
-    mirror.textContent = line || '\u200b';
-    top += mirror.offsetHeight;
-  });
-
-  lineOffsets = offsets;
-  return offsets;
+  const style = getComputedStyle(editor);
+  const lineHeight = parseFloat(style.lineHeight) || 24;
+  state.lineOffsets = lines.map((_, i) => i * lineHeight);
 }
 
 function updateLineNumbers() {
-  const inner = document.getElementById('line-numbers-inner');
-  const lnWrap = document.getElementById('line-numbers');
-  const editorStyle = getComputedStyle(editor);
-  const paddingTop = parseFloat(editorStyle.paddingTop) || 0;
-
-  const offsets = computeLineOffsets();
   const lines = editor.value.split('\n');
-  const lineHeight = parseFloat(editorStyle.lineHeight) || 20;
-
-  // Build absolutely-positioned number labels
-  let html = '';
-  offsets.forEach((topPx, i) => {
-    // Height = gap to next line (or lineHeight for last)
-    const h = (i + 1 < offsets.length) ? (offsets[i + 1] - topPx) : lineHeight;
-    html += `<div class="line-num" style="top:${topPx + paddingTop}px;height:${h}px;padding-top:0">${i + 1}</div>`;
-  });
-  inner.innerHTML = html;
-
-  // Sync: shift inner container up by scrollTop so numbers track the text
-  inner.style.transform = `translateY(${-editor.scrollTop}px)`;
+  lineNumbers.textContent = lines.map((_, i) => i + 1).join('\n');
+  lineNumbers.style.transform = `translateY(${-editor.scrollTop}px)`;
+  computeLineOffsets();
 }
 
-// Build HTML from markdown with data-srcline attributes on every block element.
-// Uses marked's lexer to find the source line of each token, then a custom renderer
-// to inject those as data-srcline="N" on the rendered elements.
-function renderWithSourceMap(md) {
-  // Step 1: lex to get tokens with their raw source text
-  const tokens = marked.lexer(md);
+function indexToLine(index) {
+  return editor.value.slice(0, index).split('\n').length - 1;
+}
 
-  // Step 2: calculate starting line for each top-level token
-  let lineNum = 0;
-  const tokenStartLines = [];
-  tokens.forEach(token => {
-    tokenStartLines.push(lineNum);
-    if (token.raw) {
-      // Count newlines in raw — but raw often ends with \n\n, don't double-count
-      lineNum += token.raw.split('\n').length - 1;
-    }
-  });
-
-  // Step 3: custom renderer that adds data-srcline to block elements
-  const renderer = new marked.Renderer();
+function lineToIndex(line) {
+  const lines = editor.value.split('\n');
+  const target = Math.max(0, Math.min(line, lines.length - 1));
   let idx = 0;
+  for (let i = 0; i < target; i++) idx += lines[i].length + 1;
+  return idx;
+}
 
-  const srcLine = () => tokenStartLines[idx++] ?? 0;
+function updateStats(md, chapters) {
+  const words = md.trim() ? md.trim().split(/\s+/).length : 0;
+  const sizeKB = (new Blob([md]).size / 1024).toFixed(1);
+  $('stat-chapters').textContent = chapters.length;
+  $('stat-words').textContent = words.toLocaleString('fr-FR');
+  $('stat-size').textContent = `${sizeKB} KB`;
+  $('stat-lines').textContent = md.split('\n').length.toLocaleString('fr-FR');
+  $('chapter-badge').textContent = `${chapters.length} chapitre${chapters.length > 1 ? 's' : ''}`;
+}
 
-  renderer.heading = (text, level) =>
-    `<h${level} data-srcline="${srcLine()}">${text}</h${level}>\n`;
-  renderer.paragraph = (text) =>
-    `<p data-srcline="${srcLine()}">${text}</p>\n`;
-  renderer.blockquote = (quote) =>
-    `<blockquote data-srcline="${srcLine()}">${quote}</blockquote>\n`;
-  renderer.list = (body, ordered, start) => {
-    const tag = ordered ? 'ol' : 'ul';
-    const s = (ordered && start !== 1) ? ` start="${start}"` : '';
-    return `<${tag} data-srcline="${srcLine()}"${s}>${body}</${tag}>\n`;
-  };
-  renderer.code = (code, lang) => {
-    const ln = srcLine();
-    const escaped = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const cls = lang ? ` class="language-${lang}"` : '';
-    return `<pre data-srcline="${ln}"><code${cls}>${escaped}</code></pre>\n`;
-  };
-  renderer.hr = () => `<hr data-srcline="${srcLine()}"/>\n`;
-  renderer.table = (header, body) =>
-    `<table data-srcline="${srcLine()}"><thead>${header}</thead><tbody>${body}</tbody></table>\n`;
-
-  return marked.parse(md, { renderer });
+function saveLocal(md) {
+  clearTimeout(state.saveTimer);
+  $('status-save').textContent = '● Sauvegarde...';
+  state.saveTimer = setTimeout(() => {
+    localStorage.setItem('md2epub_content', md);
+    localStorage.setItem('md2epub_title', $('input-title').value);
+    localStorage.setItem('md2epub_author', $('input-author').value);
+    localStorage.setItem('md2epub_lang', $('input-lang').value);
+    $('status-save').textContent = '● Sauvegardé';
+  }, 450);
 }
 
 function updatePreview() {
   const raw = editor.value;
   const md = fixMarkdownSpacing(raw);
-  const preview = document.getElementById('preview');
   const chapters = splitIntoChapters(md);
 
-  // Render each chapter with source-line mapping.
-  // Each chapter's data-srcline values are offset by the chapter's actual start line
-  // in the full raw document, so they map precisely to editor line numbers.
-  let html = '';
-  chapters.forEach((c, i) => {
-    if (i > 0) html += '<div class="chapter-divider"></div>';
-    const chapterHtml = renderWithSourceMap(c.content);
-    // Find actual start line of this chapter in the full raw source
-    const snippet = c.content.substring(0, Math.min(60, c.content.length));
-    const chapterStart = raw.indexOf(snippet);
-    const offset = chapterStart >= 0 ? raw.substring(0, chapterStart).split('\n').length - 1 : 0;
-    html += chapterHtml.replace(/data-srcline="(\d+)"/g, (_, n) =>
-      `data-srcline="${parseInt(n, 10) + offset}"`
-    );
-  });
-  preview.innerHTML = html || '<p style="color:#8a7a6a;font-style:italic">Commencez à écrire dans l\'éditeur…</p>';
-
-  // Stats
-  const words = md.trim() ? md.trim().split(/\s+/).length : 0;
-  const sizeKB = (new Blob([md]).size / 1024).toFixed(1);
-  document.getElementById('stat-chapters').textContent = chapters.length;
-  document.getElementById('stat-words').textContent = words.toLocaleString();
-  document.getElementById('stat-size').textContent = sizeKB + ' KB';
-  document.getElementById('chapter-badge').textContent =
-    chapters.length + ' chapitre' + (chapters.length > 1 ? 's' : '');
-
-  document.getElementById('btn-export').disabled = !md.trim();
-
-  // Auto-save
-  clearTimeout(saveTimeout);
-  const dot = document.getElementById('save-dot');
-  const saveStatus = document.getElementById('status-save');
-  dot.classList.add('saving');
-  saveStatus.textContent = 'Sauvegarde…';
-  saveStatus.style.color = 'var(--gold)';
-  saveTimeout = setTimeout(() => {
-    localStorage.setItem('md2epub_content', md);
-    localStorage.setItem('md2epub_title', document.getElementById('input-title').value);
-    localStorage.setItem('md2epub_author', document.getElementById('input-author').value);
-    dot.classList.remove('saving');
-    saveStatus.textContent = 'Sauvegardé ✓';
-    saveStatus.style.color = 'var(--green)';
-  }, 600);
-}
-
-let debounceTimer;
-editor.addEventListener('input', () => {
-  updateLineNumbers();
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(updatePreview, 280);
-});
-
-editor.addEventListener('scroll', () => {
-  const inner = document.getElementById('line-numbers-inner');
-  if (inner) inner.style.transform = `translateY(${-editor.scrollTop}px)`;
-});
-
-editor.addEventListener('keydown', e => {
-  if (e.key === 'Tab') {
-    e.preventDefault();
-    const s = editor.selectionStart, end = editor.selectionEnd;
-    editor.value = editor.value.substring(0, s) + '  ' + editor.value.substring(end);
-    editor.selectionStart = editor.selectionEnd = s + 2;
-    updateLineNumbers();
+  if (!md.trim()) {
+    preview.innerHTML = '<p style="opacity:.6;font-style:italic">Commencez à écrire…</p>';
+    updateStats(md, chapters);
+    return;
   }
-  if (e.ctrlKey || e.metaKey) {
-    if (e.key === 'b') { e.preventDefault(); wrapSelection('**', '**'); }
-    if (e.key === 'i') { e.preventDefault(); wrapSelection('*', '*'); }
-  }
-});
 
-function wrapSelection(before, after) {
-  const s = editor.selectionStart, e = editor.selectionEnd;
-  const sel = editor.value.substring(s, e) || 'texte';
-  editor.value = editor.value.substring(0, s) + before + sel + after + editor.value.substring(e);
-  editor.selectionStart = s + before.length;
-  editor.selectionEnd = s + before.length + sel.length;
-  updatePreview();
+  preview.innerHTML = renderWithSourceMap(md);
+  updateStats(md, chapters);
+  saveLocal(md);
 }
 
-
-// ══════════════════════════════════
-//  EXPORT MARKDOWN
-// ══════════════════════════════════
-function exportMarkdown() {
-  const md = editor.value;
-  if (!md.trim()) { toast("L'éditeur est vide.", 'error'); return; }
-  const title = document.getElementById('input-title').value.trim() || 'livre';
-  const blob = new Blob([md], { type: 'text/markdown; charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = title.replace(/[^a-zA-Z0-9\u00C0-\u024F\s-]/g, '').trim() + '.md';
-  a.click();
-  toast('✓ Export Markdown terminé');
-}
-
-// ══════════════════════════════════
-//  BIDIRECTIONAL CURSOR SYNC
-// ══════════════════════════════════
-// Strategy:
-//   Editor → Preview : cursor line N → find preview element [data-srcline] closest to N
-//                      → scroll it to top of preview panel
-//   Preview → Editor : clicked element's data-srcline = N
-//                      → use lineOffsets[N] (pixel top of that source line in editor)
-//                      → set editor.scrollTop = lineOffsets[N] - paddingTop
-//
-// lineOffsets[] is computed by computeLineOffsets() (mirror-based) and kept fresh
-// after every edit/render cycle.
-
-let syncLock = false;
-
-// Helper: scroll editor so source line N is at the top of the visible area
-function scrollEditorToLine(n) {
-  const editorStyle = getComputedStyle(editor);
-  const paddingTop = parseFloat(editorStyle.paddingTop) || 0;
-  const offset = (lineOffsets[n] !== undefined) ? lineOffsets[n] : 0;
-  editor.scrollTop = offset; // lineOffsets already includes 0-based content offset
-  const inner = document.getElementById('line-numbers-inner');
-  if (inner) inner.style.transform = `translateY(${-editor.scrollTop}px)`;
-}
-
-// Editor → Preview: on cursor move / selection change
 function syncEditorToPreview() {
-  if (syncLock) return;
-  const text = editor.value;
-  if (!text.trim()) return;
+  if (state.syncLock) return;
+  const markers = [...preview.querySelectorAll('[data-srcline]')];
+  if (!markers.length) return;
 
-  // Source line of cursor (0-based)
-  const curLine = text.substring(0, editor.selectionStart).split('\n').length - 1;
-
-  const preview = document.getElementById('preview');
-  const markers = Array.from(preview.querySelectorAll('[data-srcline]'));
-  if (markers.length === 0) return;
-
-  // Find marker with highest srcline that is still ≤ curLine
+  const curLine = indexToLine(editor.selectionStart);
   let best = markers[0];
-  for (const el of markers) {
-    const l = parseInt(el.dataset.srcline, 10);
-    if (l <= curLine) best = el;
+  for (const m of markers) {
+    const l = Number(m.dataset.srcline || 0);
+    if (l <= curLine) best = m;
     else break;
   }
 
-  syncLock = true;
-  // Bring that element to the top of the preview
-  const previewRect = preview.getBoundingClientRect();
-  const elRect = best.getBoundingClientRect();
-  preview.scrollTop += (elRect.top - previewRect.top) - 4;
-  requestAnimationFrame(() => { syncLock = false; });
+  state.syncLock = true;
+  const pRect = preview.getBoundingClientRect();
+  const eRect = best.getBoundingClientRect();
+  preview.scrollTop += (eRect.top - pRect.top) - 6;
+  requestAnimationFrame(() => { state.syncLock = false; });
 }
 
-// Preview → Editor: user clicks/selects in preview
-function syncPreviewToEditor() {
-  if (syncLock) return;
-  const preview = document.getElementById('preview');
+function syncPreviewToEditorFromClick(target) {
+  if (state.syncLock) return;
+  const marker = target.closest('[data-srcline]');
+  if (!marker) return;
 
-  const sel = window.getSelection();
-  let targetLine = null;
+  const line = Number(marker.dataset.srcline || 0);
+  const idx = lineToIndex(line);
+  const style = getComputedStyle(editor);
+  const lineHeight = parseFloat(style.lineHeight) || 24;
+  const paddingTop = parseFloat(style.paddingTop) || 24;
 
-  if (sel && sel.rangeCount > 0 && preview.contains(sel.anchorNode)) {
-    // Walk up DOM to find nearest ancestor with data-srcline
-    let node = sel.anchorNode;
-    while (node && node !== preview) {
-      if (node.nodeType === 1 && node.dataset && node.dataset.srcline !== undefined) {
-        targetLine = parseInt(node.dataset.srcline, 10);
-        break;
-      }
-      node = node.parentNode;
-    }
-    // Fallback: find the marker whose rendered position is closest above the selection
-    if (targetLine === null) {
-      const range = sel.getRangeAt(0);
-      const clickY = range.getBoundingClientRect().top;
-      const previewRect = preview.getBoundingClientRect();
-      const absClickY = clickY - previewRect.top + preview.scrollTop;
-      const markers = Array.from(preview.querySelectorAll('[data-srcline]'));
-      let best = markers[0];
-      for (const el of markers) {
-        const elTop = el.offsetTop;
-        if (elTop <= absClickY) best = el;
-        else break;
-      }
-      if (best) targetLine = parseInt(best.dataset.srcline, 10);
-    }
-  }
-
-  if (targetLine === null) return;
-  syncLock = true;
-  scrollEditorToLine(targetLine);
-  requestAnimationFrame(() => { syncLock = false; });
+  state.syncLock = true;
+  editor.focus();
+  editor.setSelectionRange(idx, idx);
+  editor.scrollTop = Math.max(0, line * lineHeight - paddingTop);
+  updateLineNumbers();
+  requestAnimationFrame(() => {
+    state.syncLock = false;
+    syncEditorToPreview();
+  });
 }
 
-// ══════════════════════════════════
-//  BUTTON HANDLERS
-// ══════════════════════════════════
-document.getElementById('btn-export').addEventListener('click', generateEPUB);
-document.getElementById('btn-export-html').addEventListener('click', exportHTML);
-document.getElementById('btn-export-md').addEventListener('click', exportMarkdown);
+function downloadBlob(name, blob) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1200);
+}
 
-// Bidirectional sync listeners
-editor.addEventListener('mouseup', syncEditorToPreview);
+function exportMarkdown() {
+  const md = editor.value;
+  if (!md.trim()) return toast('Éditeur vide');
+  const title = ($('input-title').value.trim() || 'livre').replace(/[^\w\s-]/g, '').trim() || 'livre';
+  downloadBlob(`${title}.md`, new Blob([md], { type: 'text/markdown;charset=utf-8' }));
+  toast('Markdown exporté');
+}
+
+function exportHTML() {
+  const md = editor.value;
+  if (!md.trim()) return toast('Éditeur vide');
+
+  const title = $('input-title').value.trim() || 'Mon livre';
+  const author = $('input-author').value.trim() || 'Anonyme';
+  const lang = $('input-lang').value;
+  const chapters = splitIntoChapters(md);
+  const toc = chapters.map(c => `<li>${escapeXML(c.title)}</li>`).join('');
+  const body = marked.parse(md);
+
+  const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><title>${escapeXML(title)}</title><style>body{max-width:760px;margin:2rem auto;padding:0 1rem;line-height:1.7;font-family:Georgia,serif}h1,h2,h3,h4{font-family:serif}nav{padding:1rem;border:1px solid #ddd;background:#fafafa}</style></head><body><h1>${escapeXML(title)}</h1><p><em>${escapeXML(author)}</em></p><nav><strong>Table des matières</strong><ol>${toc}</ol></nav>${body}</body></html>`;
+  downloadBlob(`${title.replace(/[^\w\s-]/g, '').trim() || 'livre'}.html`, new Blob([html], { type: 'text/html;charset=utf-8' }));
+  toast('HTML exporté');
+}
+
+async function exportEPUB() {
+  const md = editor.value;
+  if (!md.trim()) return toast('Éditeur vide');
+
+  const meta = {
+    title: $('input-title').value.trim() || 'Mon livre',
+    author: $('input-author').value.trim() || 'Anonyme',
+    lang: $('input-lang').value
+  };
+
+  const chapters = splitIntoChapters(md);
+  const zip = new JSZip();
+  const uuid = generateUUID();
+
+  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
+  zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
+
+  const manifestItems = chapters.map(c => `<item id="${c.id}" href="${c.id}.xhtml" media-type="application/xhtml+xml"/>`).join('');
+  const spineItems = chapters.map(c => `<itemref idref="${c.id}"/>`).join('');
+  const navPoints = chapters.map((c, i) => `<navPoint id="np-${i + 1}" playOrder="${i + 1}"><navLabel><text>${escapeXML(c.title)}</text></navLabel><content src="${c.id}.xhtml"/></navPoint>`).join('');
+
+  zip.file('OEBPS/content.opf', `<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">urn:uuid:${uuid}</dc:identifier><dc:title>${escapeXML(meta.title)}</dc:title><dc:creator>${escapeXML(meta.author)}</dc:creator><dc:language>${meta.lang}</dc:language></metadata><manifest><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="css" href="style.css" media-type="text/css"/>${manifestItems}</manifest><spine toc="ncx">${spineItems}</spine></package>`);
+  zip.file('OEBPS/toc.ncx', `<?xml version="1.0" encoding="UTF-8"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="urn:uuid:${uuid}"/></head><docTitle><text>${escapeXML(meta.title)}</text></docTitle><navMap>${navPoints}</navMap></ncx>`);
+  zip.file('OEBPS/style.css', 'body{font-family:Georgia,serif;line-height:1.7;margin:1.5em;color:#222}h1,h2,h3,h4{font-family:serif}');
+
+  chapters.forEach(c => {
+    const body = marked.parse(c.content);
+    zip.file(`OEBPS/${c.id}.xhtml`, `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${escapeXML(c.title)}</title><link rel="stylesheet" href="style.css"/></head><body>${body}</body></html>`);
+  });
+
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip', compression: 'DEFLATE', compressionOptions: { level: 9 } });
+  downloadBlob(`${meta.title.replace(/[^\w\s-]/g, '').trim() || 'livre'}.epub`, blob);
+  toast('EPUB généré');
+}
+
+function restore() {
+  const saved = localStorage.getItem('md2epub_content');
+  if (saved) editor.value = saved;
+  $('input-title').value = localStorage.getItem('md2epub_title') || '';
+  $('input-author').value = localStorage.getItem('md2epub_author') || '';
+  $('input-lang').value = localStorage.getItem('md2epub_lang') || 'fr';
+}
+
+editor.addEventListener('input', () => {
+  updateLineNumbers();
+  updatePreview();
+});
+editor.addEventListener('scroll', updateLineNumbers);
+editor.addEventListener('click', syncEditorToPreview);
 editor.addEventListener('keyup', syncEditorToPreview);
-document.getElementById('preview').addEventListener('mouseup', syncPreviewToEditor);
+editor.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = editor.selectionStart;
+    const end = editor.selectionEnd;
+    editor.value = editor.value.slice(0, s) + '  ' + editor.value.slice(end);
+    editor.selectionStart = editor.selectionEnd = s + 2;
+    updateLineNumbers();
+    updatePreview();
+  }
+});
+preview.addEventListener('click', e => syncPreviewToEditorFromClick(e.target));
 
-document.getElementById('btn-clear').addEventListener('click', () => {
+$('input-title').addEventListener('input', () => saveLocal(editor.value));
+$('input-author').addEventListener('input', () => saveLocal(editor.value));
+$('input-lang').addEventListener('change', () => saveLocal(editor.value));
+
+$('btn-export-md').addEventListener('click', exportMarkdown);
+$('btn-export-html').addEventListener('click', exportHTML);
+$('btn-export-epub').addEventListener('click', exportEPUB);
+
+$('btn-import').addEventListener('click', () => $('file-input').click());
+$('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    editor.value = String(ev.target.result || '');
+    updateLineNumbers();
+    updatePreview();
+    toast(`Importé: ${file.name}`);
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
+$('btn-clear').addEventListener('click', () => {
   if (!editor.value.trim() || confirm('Effacer tout le contenu ?')) {
     editor.value = '';
     updateLineNumbers();
@@ -1375,81 +464,63 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   }
 });
 
-document.getElementById('btn-import').addEventListener('click', () => {
-  document.getElementById('file-input').click();
-});
-
-document.getElementById('file-input').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    editor.value = ev.target.result;
-    updateLineNumbers();
-    updatePreview();
-    toast('✓ Fichier importé : ' + file.name);
-    e.target.value = '';
-  };
-  reader.readAsText(file);
-});
-
-document.getElementById('btn-font-up').addEventListener('click', () => {
-  editorFontSize = Math.min(editorFontSize + 1, 22);
-  editor.style.fontSize = editorFontSize + 'px';
-  document.getElementById('line-numbers').style.fontSize = editorFontSize + 'px';
+$('btn-font-up').addEventListener('click', () => {
+  state.fontSize = Math.min(state.fontSize + 1, 22);
+  editor.style.fontSize = `${state.fontSize}px`;
+  lineNumbers.style.fontSize = `${state.fontSize}px`;
   updateLineNumbers();
 });
 
-document.getElementById('btn-font-down').addEventListener('click', () => {
-  editorFontSize = Math.max(editorFontSize - 1, 9);
-  editor.style.fontSize = editorFontSize + 'px';
-  document.getElementById('line-numbers').style.fontSize = editorFontSize + 'px';
+$('btn-font-down').addEventListener('click', () => {
+  state.fontSize = Math.max(state.fontSize - 1, 9);
+  editor.style.fontSize = `${state.fontSize}px`;
+  lineNumbers.style.fontSize = `${state.fontSize}px`;
   updateLineNumbers();
 });
 
-// Theme toggle
-document.getElementById('btn-theme').addEventListener('click', () => {
-  isDark = !isDark;
+$('btn-theme').addEventListener('click', () => {
+  state.dark = !state.dark;
   const root = document.documentElement;
-  if (isDark) {
-    root.style.setProperty('--bg', '#0f0f13');
-    root.style.setProperty('--surface', '#161620');
-    root.style.setProperty('--surface2', '#1e1e2c');
-    root.style.setProperty('--border', '#2a2a3d');
-    root.style.setProperty('--border2', '#363650');
-    root.style.setProperty('--text', '#d4cfbe');
-    root.style.setProperty('--text-dim', '#8a8578');
-    root.style.setProperty('--text-bright', '#f0ece0');
-    root.style.setProperty('--editor-bg', '#0b0b0f');
-    root.style.setProperty('--editor-text', '#d4cfbe');
+  if (state.dark) {
+    root.style.setProperty('--bg', '#0f0f13'); root.style.setProperty('--surface', '#161620'); root.style.setProperty('--surface2', '#1e1e2c');
+    root.style.setProperty('--border', '#2a2a3d'); root.style.setProperty('--border2', '#363650'); root.style.setProperty('--text', '#d4cfbe');
+    root.style.setProperty('--text-dim', '#8a8578'); root.style.setProperty('--text-bright', '#f0ece0'); root.style.setProperty('--editor-bg', '#0b0b0f'); root.style.setProperty('--editor-text', '#d4cfbe');
   } else {
-    root.style.setProperty('--bg', '#f5f1e8');
-    root.style.setProperty('--surface', '#ede8dc');
-    root.style.setProperty('--surface2', '#e5dfd0');
-    root.style.setProperty('--border', '#c8bfaa');
-    root.style.setProperty('--border2', '#b8ae98');
-    root.style.setProperty('--text', '#3c3428');
-    root.style.setProperty('--text-dim', '#7a6e5c');
-    root.style.setProperty('--text-bright', '#1a1410');
-    root.style.setProperty('--editor-bg', '#faf7f0');
-    root.style.setProperty('--editor-text', '#2c2820');
+    root.style.setProperty('--bg', '#f5f1e8'); root.style.setProperty('--surface', '#ede8dc'); root.style.setProperty('--surface2', '#e5dfd0');
+    root.style.setProperty('--border', '#c8bfaa'); root.style.setProperty('--border2', '#b8ae98'); root.style.setProperty('--text', '#3c3428');
+    root.style.setProperty('--text-dim', '#7a6e5c'); root.style.setProperty('--text-bright', '#1a1410'); root.style.setProperty('--editor-bg', '#faf7f0'); root.style.setProperty('--editor-text', '#2c2820');
   }
 });
 
-// Mobile tabs
-document.querySelectorAll('.mobile-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.mobile-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const which = tab.dataset.tab;
-    document.getElementById('pane-editor').classList.toggle('hidden', which !== 'editor');
-    document.getElementById('pane-preview').classList.toggle('hidden', which !== 'preview');
-  });
+const divider = $('divider');
+let resizing = false;
+divider.addEventListener('mousedown', () => {
+  resizing = true;
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'col-resize';
+});
+document.addEventListener('mousemove', e => {
+  if (!resizing) return;
+  const main = document.querySelector('.main');
+  const rect = main.getBoundingClientRect();
+  const pct = ((e.clientX - rect.left) / rect.width) * 100;
+  const clamped = Math.max(20, Math.min(80, pct));
+  $('pane-editor').style.flex = `0 0 ${clamped}%`;
+  $('pane-preview').style.flex = `0 0 ${100 - clamped}%`;
+});
+document.addEventListener('mouseup', () => {
+  resizing = false;
+  document.body.style.userSelect = '';
+  document.body.style.cursor = '';
 });
 
-// Drag & drop on editor
-editor.addEventListener('dragover', e => { e.preventDefault(); editor.style.outline = '2px dashed var(--gold)'; });
-editor.addEventListener('dragleave', () => { editor.style.outline = ''; });
+editor.addEventListener('dragover', e => {
+  e.preventDefault();
+  editor.style.outline = '2px dashed var(--gold)';
+});
+editor.addEventListener('dragleave', () => {
+  editor.style.outline = '';
+});
 editor.addEventListener('drop', e => {
   e.preventDefault();
   editor.style.outline = '';
@@ -1457,88 +528,17 @@ editor.addEventListener('drop', e => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    editor.value = ev.target.result;
+    editor.value = String(ev.target.result || '');
     updateLineNumbers();
     updatePreview();
-    toast('✓ Glissé-déposé : ' + file.name);
+    toast(`Glissé-déposé: ${file.name}`);
   };
   reader.readAsText(file);
 });
 
-// ══════════════════════════════════
-//  RESIZE DIVIDER
-// ══════════════════════════════════
-const divider = document.getElementById('divider');
-let isResizing = false;
-divider.addEventListener('mousedown', e => {
-  isResizing = true;
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
-});
-document.addEventListener('mousemove', e => {
-  if (!isResizing) return;
-  const main = document.querySelector('.main');
-  const rect = main.getBoundingClientRect();
-  const pct = ((e.clientX - rect.left) / rect.width) * 100;
-  const clamped = Math.max(20, Math.min(80, pct));
-  document.getElementById('pane-editor').style.flex = `0 0 ${clamped}%`;
-  document.getElementById('pane-preview').style.flex = `0 0 ${100 - clamped}%`;
-});
-document.addEventListener('mouseup', () => {
-  isResizing = false;
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-});
-
-// ══════════════════════════════════
-//  RESTORE FROM LOCALSTORAGE
-// ══════════════════════════════════
-function restore() {
-  const saved = localStorage.getItem('md2epub_content');
-  if (saved) {
-    editor.value = saved;
-    document.getElementById('input-title').value = localStorage.getItem('md2epub_title') || '';
-    document.getElementById('input-author').value = localStorage.getItem('md2epub_author') || '';
-  } else {
-    editor.value = `# Mon premier livre
-
-Bienvenue dans l'éditeur **Markdown → EPUB**.
-
-Utilisez \`####\` pour délimiter vos chapitres.
-
-#### Chapitre 1 — Prélude
-
-*Lorem ipsum dolor sit amet*, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.
-
-> "Tout grand voyage commence par un premier pas."
-
-#### Chapitre 2 — L'éveil
-
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident.
-
-**Texte en gras**, *texte en italique*, \`code inline\`.
-
-\`\`\`
-// Exemple de bloc de code
-function saluer(nom) {
-  return "Bonjour, " + nom + " !";
-}
-\`\`\`
-
-#### Chapitre 3 — Épilogue
-
-Sunt in culpa qui officia deserunt mollit anim id est laborum. Curabitur pretium tincidunt lacus. Nulla gravida orci a odio, et tempus feugiat.
-
-- Premier élément de liste
-- Deuxième élément
-- Troisième élément
-`;
-  }
-  updateLineNumbers();
-  updatePreview();
-}
-
 restore();
+updateLineNumbers();
+updatePreview();
 </script>
 </body>
 </html>
