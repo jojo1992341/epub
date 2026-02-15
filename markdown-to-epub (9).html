@@ -286,8 +286,8 @@
     /* will be transformed via translateY to match editor.scrollTop */
   }
   .line-num {
-    position: absolute;
-    left: 0; right: 0.4rem;
+    position: relative;
+    width: 100%;
     text-align: right;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
@@ -1089,7 +1089,6 @@ function computeLineOffsets() {
 
 function updateLineNumbers() {
   const inner = document.getElementById('line-numbers-inner');
-  const lnWrap = document.getElementById('line-numbers');
   const editorStyle = getComputedStyle(editor);
   const paddingTop = parseFloat(editorStyle.paddingTop) || 0;
 
@@ -1102,9 +1101,10 @@ function updateLineNumbers() {
   offsets.forEach((topPx, i) => {
     // Height = gap to next line (or lineHeight for last)
     const h = (i + 1 < offsets.length) ? (offsets[i + 1] - topPx) : lineHeight;
-    html += `<div class="line-num" style="top:${topPx + paddingTop}px;height:${h}px;padding-top:0">${i + 1}</div>`;
+    html += `<div class="line-num" style="height:${h}px">${i + 1}</div>`;
   });
   inner.innerHTML = html;
+  inner.style.paddingTop = `${paddingTop}px`;
 
   // Sync: shift inner container up by scrollTop so numbers track the text
   inner.style.transform = `translateY(${-editor.scrollTop}px)`;
@@ -1173,25 +1173,9 @@ function updatePreview() {
   const preview = document.getElementById('preview');
   const chapters = splitIntoChapters(md);
 
-  // Render each chapter with source-line mapping.
-  // Each chapter's data-srcline values are offset by the chapter's actual start line
-  // in the full raw document, so they map precisely to editor line numbers.
-  let html = '';
-  let searchFrom = 0;
-  chapters.forEach((c, i) => {
-    if (i > 0) html += '<div class="chapter-divider"></div>';
-    const chapterHtml = renderWithSourceMap(c.content);
-    // Find actual start line of this chapter in the full raw source.
-    // We search from the end of the previous chapter to keep mapping stable
-    // when chapter text appears multiple times in the document.
-    const chapterStart = raw.indexOf(c.content, searchFrom);
-    const safeStart = chapterStart >= 0 ? chapterStart : searchFrom;
-    const offset = raw.substring(0, safeStart).split('\n').length - 1;
-    searchFrom = safeStart + c.content.length;
-    html += chapterHtml.replace(/data-srcline="(\d+)"/g, (_, n) =>
-      `data-srcline="${parseInt(n, 10) + offset}"`
-    );
-  });
+  // Render source-map on the whole document in one pass.
+  // This avoids chapter offset drift when many #### headings are present.
+  const html = renderWithSourceMap(md);
   preview.innerHTML = html || '<p style="color:#8a7a6a;font-style:italic">Commencez à écrire dans l\'éditeur…</p>';
 
   // Stats
@@ -1390,6 +1374,7 @@ document.getElementById('btn-export-md').addEventListener('click', exportMarkdow
 
 // Bidirectional sync listeners
 editor.addEventListener('mouseup', syncEditorToPreview);
+editor.addEventListener('click', syncEditorToPreview);
 editor.addEventListener('keyup', syncEditorToPreview);
 document.getElementById('preview').addEventListener('mouseup', syncPreviewToEditor);
 document.getElementById('preview').addEventListener('click', e => syncPreviewToEditorFromTarget(e.target));
@@ -1399,6 +1384,9 @@ if (wrapper && window.ResizeObserver) {
   new ResizeObserver(() => scheduleLineNumberRefresh()).observe(wrapper);
 }
 window.addEventListener('resize', scheduleLineNumberRefresh);
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(scheduleLineNumberRefresh);
+}
 
 document.getElementById('btn-clear').addEventListener('click', () => {
   if (!editor.value.trim() || confirm('Effacer tout le contenu ?')) {
