@@ -1110,6 +1110,15 @@ function updateLineNumbers() {
   inner.style.transform = `translateY(${-editor.scrollTop}px)`;
 }
 
+let lineNumberRaf = null;
+function scheduleLineNumberRefresh() {
+  if (lineNumberRaf !== null) cancelAnimationFrame(lineNumberRaf);
+  lineNumberRaf = requestAnimationFrame(() => {
+    lineNumberRaf = null;
+    updateLineNumbers();
+  });
+}
+
 // Build HTML from markdown with data-srcline attributes on every block element.
 // Uses marked's lexer to find the source line of each token, then a custom renderer
 // to inject those as data-srcline="N" on the rendered elements.
@@ -1168,13 +1177,17 @@ function updatePreview() {
   // Each chapter's data-srcline values are offset by the chapter's actual start line
   // in the full raw document, so they map precisely to editor line numbers.
   let html = '';
+  let searchFrom = 0;
   chapters.forEach((c, i) => {
     if (i > 0) html += '<div class="chapter-divider"></div>';
     const chapterHtml = renderWithSourceMap(c.content);
-    // Find actual start line of this chapter in the full raw source
-    const snippet = c.content.substring(0, Math.min(60, c.content.length));
-    const chapterStart = raw.indexOf(snippet);
-    const offset = chapterStart >= 0 ? raw.substring(0, chapterStart).split('\n').length - 1 : 0;
+    // Find actual start line of this chapter in the full raw source.
+    // We search from the end of the previous chapter to keep mapping stable
+    // when chapter text appears multiple times in the document.
+    const chapterStart = raw.indexOf(c.content, searchFrom);
+    const safeStart = chapterStart >= 0 ? chapterStart : searchFrom;
+    const offset = raw.substring(0, safeStart).split('\n').length - 1;
+    searchFrom = safeStart + c.content.length;
     html += chapterHtml.replace(/data-srcline="(\d+)"/g, (_, n) =>
       `data-srcline="${parseInt(n, 10) + offset}"`
     );
@@ -1355,6 +1368,19 @@ function syncPreviewToEditor() {
   requestAnimationFrame(() => { syncLock = false; });
 }
 
+function syncPreviewToEditorFromTarget(target) {
+  if (syncLock) return;
+  const preview = document.getElementById('preview');
+  if (!target || !preview.contains(target)) return;
+  const marker = target.closest('[data-srcline]');
+  if (!marker) return;
+  const targetLine = parseInt(marker.dataset.srcline, 10);
+  if (Number.isNaN(targetLine)) return;
+  syncLock = true;
+  scrollEditorToLine(targetLine);
+  requestAnimationFrame(() => { syncLock = false; });
+}
+
 // ══════════════════════════════════
 //  BUTTON HANDLERS
 // ══════════════════════════════════
@@ -1366,6 +1392,13 @@ document.getElementById('btn-export-md').addEventListener('click', exportMarkdow
 editor.addEventListener('mouseup', syncEditorToPreview);
 editor.addEventListener('keyup', syncEditorToPreview);
 document.getElementById('preview').addEventListener('mouseup', syncPreviewToEditor);
+document.getElementById('preview').addEventListener('click', e => syncPreviewToEditorFromTarget(e.target));
+
+const wrapper = document.querySelector('.editor-wrapper');
+if (wrapper && window.ResizeObserver) {
+  new ResizeObserver(() => scheduleLineNumberRefresh()).observe(wrapper);
+}
+window.addEventListener('resize', scheduleLineNumberRefresh);
 
 document.getElementById('btn-clear').addEventListener('click', () => {
   if (!editor.value.trim() || confirm('Effacer tout le contenu ?')) {
