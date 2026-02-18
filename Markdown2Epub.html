@@ -388,22 +388,23 @@ class MarkdownParser {
       for (let j = 0; j < t.length; j++) {
         const ch = t[j];
 
-        if (ch === '«') { dialogueOpen = true; out += ch; continue; }
+        // Les guillemets français existants mettent à jour l'état mais ne sont pas modifiés.
+        if (ch === '«') { dialogueOpen = true;  out += ch; continue; }
         if (ch === '»') { dialogueOpen = false; out += ch; continue; }
 
         if (ch === "'" || ch === '"') {
-          const prev = j > 0 ? t[j - 1] : '';
-          const next = j < t.length - 1 ? t[j + 1] : '';
+          const prev = j > 0          ? t[j - 1] : '';
+          const next = j < t.length-1 ? t[j + 1] : '';
 
-          // Apostrophe interne d'un mot : on conserve.
+          // Apostrophe interne d'un mot (ex : c'est, l'homme) → on conserve.
           if (isWordChar(prev) && isWordChar(next)) { out += ch; continue; }
 
-          // Dialogue : si déjà ouvert dans le paragraphe, on ferme ; sinon on ouvre.
+          // Sinon : alterne ouverture/fermeture selon l'état du dialogue.
           if (dialogueOpen) {
-            out += '»';
+            out += ' »';
             dialogueOpen = false;
           } else {
-            out += '«';
+            out += '« ';
             dialogueOpen = true;
           }
           continue;
