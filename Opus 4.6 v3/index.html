@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown Book Editor</title>
+
+  <!-- CodeMirror CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"
+        onerror="this.onerror=null;this.href='vendor/codemirror.css';">
+
+  <!-- Styles applicatifs -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════
+       ÉCRAN DE CHARGEMENT
+       ═══════════════════════════════════════ -->
+  <div id="loading-screen">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <p id="loading-message">Chargement de l'éditeur…</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       EN-TÊTE
+       ═══════════════════════════════════════ -->
+  <header id="app-header">
+    <div class="header-meta">
+      <input type="text" id="meta-title" placeholder="Titre du livre" title="Titre du livre">
+      <input type="text" id="meta-author" placeholder="Auteur" title="Auteur">
+      <input type="text" id="meta-language" placeholder="Langue (fr)" title="Langue" value="fr">
+    </div>
+    <div class="header-actions">
+      <button id="btn-import" title="Importer un fichier Markdown ou texte">📂 Importer</button>
+      <button id="btn-export-md" title="Exporter en Markdown">📝 MD</button>
+      <button id="btn-export-html" title="Exporter en HTML">🌐 HTML</button>
+      <button id="btn-export-epub" title="Exporter en EPUB">📖 EPUB</button>
+      <button id="btn-plugins" title="Ouvrir le panneau des plugins de corrections">🔧 Plugins</button>
+      <button id="btn-font-down" title="Réduire la taille de police">A−</button>
+      <button id="btn-font-up" title="Agrandir la taille de police">A+</button>
+      <button id="btn-theme" title="Basculer le thème clair/sombre">🌙</button>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════
+       CORPS PRINCIPAL
+       ═══════════════════════════════════════ -->
+  <main id="app-main">
+
+    <!-- Sidebar chapitres -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h2>Chapitres</h2>
+        <button id="btn-add-chapter" title="Ajouter un chapitre">＋</button>
+      </div>
+      <ul id="chapter-list"></ul>
+    </aside>
+
+    <!-- Éditeur CodeMirror -->
+    <div id="editor-container"></div>
+
+    <!-- Prévisualisation -->
+    <div id="preview-container">
+      <div id="preview-content"></div>
+    </div>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════
+       BARRE DE STATISTIQUES
+       ═══════════════════════════════════════ -->
+  <footer id="status-bar">
+    <span id="stat-chapters">Chapitres : 0</span>
+    <span id="stat-words-chapter">Mots (chapitre) : 0</span>
+    <span id="stat-words-total">Mots (total) : 0</span>
+    <span id="stat-size">Taille : 0 o</span>
+    <span id="autosave-indicator" data-state="idle">●</span>
+    <span id="status-message"></span>
+  </footer>
+
+  <!-- ═══════════════════════════════════════
+       OVERLAY EPUB
+       ═══════════════════════════════════════ -->
+  <div id="epub-overlay" class="hidden">
+    <div class="overlay-content">
+      <div class="epub-spinner"></div>
+      <p>Génération de l'EPUB en cours…</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       PANNEAU PLUGINS
+       ═══════════════════════════════════════ -->
+  <div id="plugins-panel" class="hidden">
+    <div class="plugins-inner">
+
+      <!-- En-tête plugins -->
+      <div class="plugins-header">
+        <h2>Plugins de corrections</h2>
+        <div class="plugins-header-actions">
+          <button id="btn-sequences-help" title="Aide sur les séquences spéciales">📖 Séquences</button>
+          <button id="btn-close-plugins" title="Fermer le panneau">✕</button>
+        </div>
+      </div>
+
+      <!-- Corps plugins -->
+      <div class="plugins-body">
+
+        <!-- Colonne liste des plugins -->
+        <div class="plugins-list-column">
+          <ul id="plugins-list"></ul>
+          <div class="plugins-list-actions">
+            <button id="btn-new-plugin" title="Créer un nouveau plugin">＋ Nouveau plugin</button>
+            <button id="btn-export-plugins" title="Exporter les plugins en JSON">📤 Exporter</button>
+            <button id="btn-import-plugins" title="Importer des plugins depuis un JSON">📥 Importer</button>
+          </div>
+        </div>
+
+        <!-- Colonne édition du plugin -->
+        <div class="plugin-editor-column" id="plugin-editor-column">
+
+          <!-- En-tête édition -->
+          <div class="plugin-edit-header">
+            <div class="plugin-edit-header-row">
+              <input type="text" id="plugin-name" placeholder="Nom du plugin" title="Nom du plugin">
+              <button id="btn-lock-plugin" class="btn-lock" title="Verrouiller / Déverrouiller le plugin">🔓</button>
+            </div>
+            <div id="plugin-locked-banner" class="plugin-locked-banner hidden">
+              🔒 Ce plugin est verrouillé. Déverrouillez-le pour le modifier.
+            </div>
+            <div class="plugin-target-selector">
+              <label><input type="radio" name="plugin-target" value="preview" checked> Preview/Export</label>
+              <label><input type="radio" name="plugin-target" value="editor"> Éditeur</label>
+              <label><input type="radio" name="plugin-target" value="both"> Les deux</label>
+            </div>
+            <div id="plugin-editor-warning" class="plugin-warning hidden">
+              ⚠ Les modifications appliquées par un plugin éditeur sont permanentes et irréversibles.
+            </div>
+          </div>
+
+          <!-- Onglets -->
+          <div class="plugin-tabs">
+            <button class="plugin-tab active" data-tab="rules">Règles</button>
+            <button class="plugin-tab" data-tab="code">JavaScript</button>
+          </div>
+
+          <!-- Contenu onglet Règles -->
+          <div class="plugin-tab-content" id="tab-rules">
+            <div id="rules-container"></div>
+            <button id="btn-add-rule" class="btn-add-rule">＋ Ajouter une règle</button>
+          </div>
+
+          <!-- Contenu onglet JavaScript -->
+          <div class="plugin-tab-content hidden" id="tab-code">
+            <div class="code-context-line">function(text) {</div>
+            <textarea id="plugin-code" spellcheck="false" placeholder="// Votre code ici…"></textarea>
+            <div class="code-context-line">&nbsp;&nbsp;return text;<br>}</div>
+            <div id="plugin-code-warning" class="plugin-warning hidden">
+              ⚠ Le code a été modifié manuellement. La régénération depuis les règles écrasera vos modifications.
+            </div>
+          </div>
+
+          <!-- Prévisualisation du plugin -->
+          <div class="plugin-preview-section">
+            <h3>Prévisualisation</h3>
+            <div class="plugin-preview-columns">
+              <div class="plugin-preview-input">
+                <label>Entrée :</label>
+                <textarea id="plugin-test-input" placeholder="Saisissez un texte de test…"></textarea>
+              </div>
+              <div class="plugin-preview-output">
+                <label>Sortie :</label>
+                <div id="plugin-test-output"></div>
+              </div>
+            </div>
+            <div id="plugin-test-error" class="plugin-test-error hidden"></div>
+          </div>
+
+          <!-- Pied d'édition -->
+          <div class="plugin-edit-footer">
+            <button id="btn-delete-plugin" class="btn-danger" title="Supprimer ce plugin">🗑 Supprimer ce plugin</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       PANNEAU AIDE SÉQUENCES SPÉCIALES
+       ═══════════════════════════════════════ -->
+  <div id="sequences-panel" class="hidden">
+    <div class="sequences-inner">
+      <div class="sequences-header">
+        <h2>Séquences spéciales</h2>
+        <button id="btn-close-sequences" title="Fermer">✕</button>
+      </div>
+      <div class="sequences-body" id="sequences-body">
+        <!-- Rempli dynamiquement par UI -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       INPUTS FILE CACHÉS
+       ═══════════════════════════════════════ -->
+  <input type="file" id="file-import-md" accept=".md,.txt,.markdown" class="hidden">
+  <input type="file" id="file-import-plugins" accept=".json" class="hidden">
+
+  <!-- ═══════════════════════════════════════
+       CHARGEMENT DES SCRIPTS
+       ═══════════════════════════════════════ -->
+
+  <!-- CodeMirror JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script>if(typeof CodeMirror==='undefined'){document.write('<script src="vendor/codemirror.min.js"><\/script>');}</script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+  <script>if(typeof CodeMirror==='undefined'||!CodeMirror.modes.xml){document.write('<script src="vendor/xml.min.js"><\/script>');}</script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+  <script>if(typeof CodeMirror==='undefined'||!CodeMirror.modes.markdown){document.write('<script src="vendor/markdown.min.js"><\/script>');}</script>
+
+  <!-- marked.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+  <script>if(typeof marked==='undefined'){document.write('<script src="vendor/marked.min.js"><\/script>');}</script>
+
+  <!-- DOMPurify -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+  <script>if(typeof DOMPurify==='undefined'){document.write('<script src="vendor/purify.min.js"><\/script>');}</script>
+
+  <!-- JSZip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>if(typeof JSZip==='undefined'){document.write('<script src="vendor/jszip.min.js"><\/script>');}</script>
+
+  <!-- Modules applicatifs (ordre strict) -->
+  <script src="db.js"></script>
+  <script src="chapters.js"></script>
+  <script src="parser.js"></script>
+  <script src="corrections.js"></script>
+  <script src="editor.js"></script>
+  <script src="preview.js"></script>
+  <script src="stats.js"></script>
+  <script src="export.md.js"></script>
+  <script src="export.html.js"></script>
+  <script src="export.epub.js"></script>
+  <script src="ui.js"></script>
+
+</body>
+</html>
